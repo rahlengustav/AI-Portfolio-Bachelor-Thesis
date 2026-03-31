@@ -1,0 +1,31 @@
+ticker,company_name,sector,esg_score,esgc_score,pe,pb,roe,debt_equity
+SAABb.ST,Saab AB,Aerospace and Defense,64.03,64.03,50.11,0.1,15.77,33.7
+SEBa.ST,Skandinaviska Enskilda Banken AB,Banks,72.19,72.19,10.97,0.0,13.91,388.1
+SKFb.ST,SKF AB,Industrial Metals and Mining,76.91,76.91,12.61,2.2,14.23,26.9
+NIBEb.ST,Nibe Industrier AB,Construction and Materials,62.82,62.82,32.28,,6.59,74.5
+ABB.ST,Abb Ltd,Electronic and Electrical Equipment,89.26,89.26,30.58,0.4,33.04,49.9
+HMb.ST,H & M Hennes & Mauritz AB,Retailers,63.09,42.41,21.66,,26.62,180.6
+VOLVb.ST,Volvo AB,Industrial Transportation,82.44,41.53,17.57,0.0,19.19,138.4
+BOL.ST,Boliden AB,Industrial Metals and Mining,79.89,79.89,13.67,,13.43,31.1
+ADDTb.ST,Addtech AB,Electronic and Electrical Equipment,44.95,44.95,40.4,,28.72,87.6
+INVEb.ST,Investor AB,Investment Banking and Brokerage Services,69.0,69.0,,0.0,,12.1
+SAND.ST,Sandvik AB,Industrial Engineering,76.34,76.34,28.07,0.9,16.65,39.9
+ALFA.ST,Alfa Laval AB,Electronic and Electrical Equipment,70.51,70.51,23.15,0.1,21.12,
+SHBa.ST,Svenska Handelsbanken AB,Banks,65.63,65.63,9.91,0.0,12.28,735.4
+SCAb.ST,Svenska Cellulosa Aktiebolaget SCA,Industrial Materials,80.09,80.09,23.83,1.1,3.09,14.4
+EVOG.ST,Evolution AB (publ),Travel and Leisure,59.03,37.37,9.58,,,2.2
+SWEDa.ST,Swedbank AB,Banks,74.26,74.26,10.51,,15.46,406.5
+TELIA.ST,Telia Company AB,Telecommunications Service Providers,81.14,81.14,23.63,2.3,14.57,151.9
+EPIRa.ST,Epiroc AB,Industrial Engineering,81.01,81.01,31.1,0.1,21.13,47.8
+TEL2b.ST,Tele2 AB,Telecommunications Service Providers,80.44,80.44,25.23,,23.79,130.8
+HEXAb.ST,Hexagon AB,Software & Computer Services,51.72,51.72,19.81,,,
+NDASE.ST,Nordea Bank Abp,Banks,73.86,73.86,10.09,0.0,,688.5
+AZN.ST,AstraZeneca PLC,Pharmaceuticals and Biotechnology,92.55,55.98,20.75,3.8,32.22,60.8
+SKAb.ST,Skanska AB,Construction and Materials,58.52,58.52,17.8,,9.07,25.7
+LIFCOb.ST,Lifco AB (publ),General Industrials,52.74,52.74,34.75,,18.51,57.0
+ERICb.ST,Telefonaktiebolaget LM Ericsson,Telecommunications Equipment,81.63,48.32,11.42,1.7,32.98,36.5
+ASSAb.ST,Assa Abloy AB,Construction and Materials,69.73,69.73,24.91,2.8,13.69,64.2
+EQTAB.ST,EQT AB,Investment Banking and Brokerage Services,67.47,67.47,,,,35.2
+INDUc.ST,Industrivarden AB,Investment Banking and Brokerage Services,38.64,38.64,,0.2,,3.8
+ESSITYb.ST,Essity AB (publ),"Personal Care, Drug and Grocery Stores",78.29,78.29,12.52,0.0,16.05,43.4
+ATCOa.ST,Atlas Copco AB,Industrial Engineering,80.44,80.44,28.27,4.9,25.59,31.6
