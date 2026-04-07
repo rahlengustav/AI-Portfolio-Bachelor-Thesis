@@ -139,6 +139,7 @@ class OMXS30FeatureBuilder:
 
         index_prices["Date"] = pd.to_datetime(index_prices["Date"])
         index_prices["Close price"] = pd.to_numeric(index_prices["Close price"], errors="coerce")
+        index_prices = index_prices.dropna(subset=["Close price"])
 
         index_series = (
             index_prices.set_index("Date")["Close price"].sort_index().rename("omxs30_close_price")
