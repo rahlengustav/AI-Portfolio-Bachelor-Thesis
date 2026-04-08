@@ -10,6 +10,7 @@ Files:
 
 Important notes:
 - `predictions.csv` only contains rebalance dates, not every trading day.
+- By default, the backtest uses a 1-day execution lag: signals from date t are traded from t+1 onward.
 - `static_random_forest` is train-once but leakage-safe.
 - `walk_forward_random_forest` is optional and only appears when enabled in the config.
 - `equal_weight_universe` is a naive baseline that holds all stocks equally.

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -32,6 +33,7 @@ class PortfolioModelConfig:
     index_sheet: str = "Close Price"
     output_dir: Path = Path("data/backtest_results")
     prediction_horizon_days: int = 5
+    execution_lag_days: int = 1
     top_n_stocks: int = 5
     rebalance_every_n_days: int = 5
     test_size: float = 0.20
@@ -40,9 +42,9 @@ class PortfolioModelConfig:
     n_estimators: int = 5
     max_depth: int | None = 8
     min_samples_leaf: int = 5
-    n_jobs: int = 1
+    n_jobs: int = -1
     initial_portfolio_value: float = 1.0
-    include_walk_forward: bool = False
+    include_walk_forward: bool = True
     walk_forward_refit_every_n_rebalances: int = 5
     feature_columns: list[str] = field(
         default_factory=lambda: [
@@ -83,7 +85,7 @@ class RandomForestPortfolioBacktester:
         leakage_audit = self._audit_original_split_leakage(model_data, train_end_date, test_start_date)
         rebalance_dates = self._select_rebalance_dates(model_data, test_start_date)
 
-        static_train_data = model_data[model_data["target_end_date"] < test_start_date].copy()
+        static_train_data = model_data[model_data["target_end_date"] <= test_start_date].copy()
         rebalance_test_data = model_data[model_data["date"].isin(rebalance_dates)].copy()
 
         static_predictions = self._run_static_model(static_train_data, rebalance_test_data)
@@ -159,9 +161,11 @@ class RandomForestPortfolioBacktester:
         index_data = index_data.dropna(subset=["Close price"]).sort_values("Date").reset_index(drop=True)
 
         horizon = self.config.prediction_horizon_days
-        index_data["future_close_price"] = index_data["Close price"].shift(-horizon)
+        entry_lag = self.config.execution_lag_days
+        index_data["entry_close_price"] = index_data["Close price"].shift(-entry_lag)
+        index_data["future_close_price"] = index_data["Close price"].shift(-(entry_lag + horizon))
         index_data["benchmark_return"] = (
-            index_data["future_close_price"] / index_data["Close price"]
+            index_data["future_close_price"] / index_data["entry_close_price"]
         ) - 1.0
         return index_data.rename(columns={"Date": "date", "Close price": "benchmark_close_price"})
 
@@ -174,17 +178,24 @@ class RandomForestPortfolioBacktester:
 
         model_data = dataset.copy()
         horizon = self.config.prediction_horizon_days
+        entry_lag = self.config.execution_lag_days
 
-        model_data["future_close_price"] = model_data.groupby("ticker")["close_price"].shift(-horizon)
-        model_data["target_end_date"] = model_data.groupby("ticker")["date"].shift(-horizon)
+        model_data["entry_close_price"] = model_data.groupby("ticker")["close_price"].shift(-entry_lag)
+        model_data["future_close_price"] = model_data.groupby("ticker")["close_price"].shift(
+            -(entry_lag + horizon)
+        )
+        model_data["target_end_date"] = model_data.groupby("ticker")["date"].shift(
+            -(entry_lag + horizon)
+        )
         model_data["target_return"] = (
-            model_data["future_close_price"] / model_data["close_price"]
+            model_data["future_close_price"] / model_data["entry_close_price"]
         ) - 1.0
 
         required_columns = [
             "date",
             "ticker",
             "close_price",
+            "entry_close_price",
             "target_return",
             "target_end_date",
             *self.config.feature_columns,
@@ -278,30 +289,46 @@ class RandomForestPortfolioBacktester:
         prediction_rows: list[pd.DataFrame] = []
         fitted_model: RandomForestRegressor | None = None
         latest_training_size = -1
+        feature_matrix = model_data[self.config.feature_columns].to_numpy(dtype=np.float32, copy=False)
+        target_vector = model_data["target_return"].to_numpy(dtype=np.float32, copy=False)
+        sorted_by_target_end = model_data.sort_values("target_end_date", kind="mergesort").reset_index()
+        sorted_train_indices = sorted_by_target_end["index"].to_numpy()
+        sorted_target_end_ns = sorted_by_target_end["target_end_date"].astype("int64").to_numpy()
+        prediction_index_by_date = {
+            pd.Timestamp(date_value): np.asarray(index_values, dtype=np.int64)
+            for date_value, index_values in model_data.groupby("date").indices.items()
+        }
+        metadata_columns = ["date", "ticker", "close_price", "target_return"]
 
         for rebalance_index, rebalance_date in enumerate(rebalance_dates):
-            train_data = model_data[model_data["target_end_date"] < rebalance_date].copy()
-            prediction_universe = model_data[model_data["date"] == rebalance_date].copy()
+            train_limit = np.searchsorted(
+                sorted_target_end_ns,
+                rebalance_date.value,
+                side="right",
+            )
+            train_indices = sorted_train_indices[:train_limit]
+            prediction_indices = prediction_index_by_date.get(rebalance_date)
 
-            if train_data.empty or prediction_universe.empty:
+            if train_limit == 0 or prediction_indices is None or len(prediction_indices) == 0:
                 continue
 
             should_refit = (
                 fitted_model is None
                 or rebalance_index % self.config.walk_forward_refit_every_n_rebalances == 0
-                or len(train_data) != latest_training_size
+                or train_limit != latest_training_size
             )
 
             if should_refit:
                 fitted_model = self._make_model()
-                fitted_model.fit(train_data[self.config.feature_columns], train_data["target_return"])
-                latest_training_size = len(train_data)
+                fitted_model.fit(feature_matrix[train_indices], target_vector[train_indices])
+                latest_training_size = train_limit
 
+            prediction_universe = model_data.iloc[prediction_indices][metadata_columns].copy()
             prediction_universe["predicted_return"] = fitted_model.predict(
-                prediction_universe[self.config.feature_columns]
+                feature_matrix[prediction_indices]
             )
             prediction_universe["model_type"] = "walk_forward_random_forest"
-            prediction_universe["training_rows_used"] = len(train_data)
+            prediction_universe["training_rows_used"] = train_limit
             prediction_universe["prediction_rank"] = prediction_universe["predicted_return"].rank(
                 method="first",
                 ascending=False,
@@ -515,6 +542,7 @@ class RandomForestPortfolioBacktester:
 
         rows: list[dict[str, object]] = [
             {"metric": "prediction_horizon_days", "value": self.config.prediction_horizon_days},
+            {"metric": "execution_lag_days", "value": self.config.execution_lag_days},
             {"metric": "top_n_stocks", "value": self.config.top_n_stocks},
             {"metric": "rebalance_every_n_days", "value": self.config.rebalance_every_n_days},
             {"metric": "random_strategy_trials", "value": self.config.random_strategy_trials},
@@ -596,6 +624,7 @@ class RandomForestPortfolioBacktester:
             "- `random_baseline_summary.csv`: one row per random trial.\n\n"
             "Important notes:\n"
             "- `predictions.csv` only contains rebalance dates, not every trading day.\n"
+            "- By default, the backtest uses a 1-day execution lag: signals from date t are traded from t+1 onward.\n"
             "- `static_random_forest` is train-once but leakage-safe.\n"
             "- `walk_forward_random_forest` is optional and only appears when enabled in the config.\n"
             "- `equal_weight_universe` is a naive baseline that holds all stocks equally.\n"
@@ -640,7 +669,42 @@ def main() -> None:
     Run the cleaned backtest pipeline and print a concise overview.
     """
 
-    backtester = RandomForestPortfolioBacktester()
+    parser = argparse.ArgumentParser(description="Run the OMXS30 Random Forest backtest.")
+    parser.add_argument(
+        "--walk-forward",
+        action="store_true",
+        help="Enable full walk-forward evaluation.",
+    )
+    parser.add_argument(
+        "--walk-forward-refit-every",
+        type=int,
+        default=1,
+        help="Refit frequency for walk-forward mode. Use 1 for true full walk-forward.",
+    )
+    parser.add_argument(
+        "--random-trials",
+        type=int,
+        default=None,
+        help="Override the number of random baseline trials.",
+    )
+    parser.add_argument(
+        "--n-estimators",
+        type=int,
+        default=None,
+        help="Override the number of trees in the Random Forest.",
+    )
+    args = parser.parse_args()
+
+    config = PortfolioModelConfig()
+    if args.walk_forward:
+        config.include_walk_forward = True
+        config.walk_forward_refit_every_n_rebalances = max(1, args.walk_forward_refit_every)
+    if args.random_trials is not None:
+        config.random_strategy_trials = max(0, args.random_trials)
+    if args.n_estimators is not None:
+        config.n_estimators = max(1, args.n_estimators)
+
+    backtester = RandomForestPortfolioBacktester(config)
     results = backtester.run()
 
     print(f"Saved outputs to: {backtester.config.output_dir}")
